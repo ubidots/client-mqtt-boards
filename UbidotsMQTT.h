@@ -26,7 +26,7 @@ Made by Mateo Velez - Metavix for Ubidots Inc
 
 #ifndef UbidotsMQTT_H
 #define UbidotsMQTT_H
-#include "MQTT.h"
+#include "PubSubClient.h"
 
 #if defined(ESP8266)
 #include "ESP8266WiFi.h"
@@ -48,7 +48,7 @@ typedef struct Value {
 class Ubidots {
  private:
     void (*callback)(char*,uint8_t*,unsigned int);
-    MQTT _broker;
+    PubSubClient _broker;
 #if defined(ESP8266)
     WiFiClient client;
 #endif

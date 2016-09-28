@@ -38,31 +38,37 @@ Ubidots::Ubidots(char* token, void (*callback)(char*,uint8_t*,unsigned int), cha
 #endif
     currentValue = 0;
     val = (Value *)malloc(MAX_VALUES*sizeof(Value));
-    _broker = MQTT(SERVER, MQTT_PORT, callback, client);
+    _broker = PubSubClient(client);
 }
+
 void Ubidots::setDataSourceLabel(char* dataSourceLabel) {
     _pId = dataSourceLabel;
 }
-bool Ubidots::connect() {
-#if defined (DEBUG_UBIDOTS)
-    Serial.println(F("Connecting to MQTT"));
-#endif
-    return _broker.connect(_pId, _token, NULL);
+
+bool Ubidots::setServerAndCallback() {
+    _broker.setServer(SERVER, MQTT_PORT);
+    _broker.setCallback(callback);
+    return true;
 }
+
 bool Ubidots::getValueSubscribe(char* labelDataSource, char* labelVariable) {
     char topic[250];
     sprintf(topic, "/v1.6/devices/%s/%s/lv", labelDataSource, labelVariable);
-    int timeout = 0;
-    if (_broker.subscribe(topic)) {
-        delay(10);
-        return true;
-    } else {
-        connect();
-        delay(10);
-        _broker.subscribe(topic);
-        delay(10);
-        return false;
+    while (!_broker.connected()) {
+        Serial.print("Attempting MQTT connection...");
+        // Attempt to connect
+        if (_broker.connect("ESP8266Client", "i8RINXyaCy0gPNC52WPwFdTkFZnzMt", NULL)) {
+            Serial.println("connected");
+            _broker.subscribe(topic);
+        } else {
+            Serial.print("failed, rc=");
+            Serial.print(_broker.state());
+            Serial.println(" try again in 5 seconds");
+            // Wait 5 seconds before retrying
+            delay(5000);
+        }
     }
+
 }
 bool Ubidots::sendValues() {
     char topic[100];
@@ -91,18 +97,21 @@ bool Ubidots::sendValues() {
     sprintf(payload, "%s}", payload);
     delay(10);
     Serial.println(payload);
-    if (_broker.publish(topic, payload)) {
-        currentValue = 0;
-        delay(10);
-        return true;
-    } else {
-        connect();
-        delay(10);
-        _broker.publish(topic, payload);
-        delay(10);
-        currentValue = 0;
-        return false;
+    while (!_broker.connected()) {
+        Serial.print("Attempting MQTT connection...");
+        // Attempt to connect
+        if (_broker.connect("ESP8266Client")) {
+              Serial.println("connected");
+              _broker.publish(topic, payload);
+        } else {
+              Serial.print("failed, rc=");
+              Serial.print(_broker.state());
+              Serial.println(" try again in 5 seconds");
+              delay(5000);
+        }
     }
+
+
 }
 bool Ubidots::add(char* label, float value) {
     return add(label, value, NULL, NULL);
@@ -122,14 +131,7 @@ bool Ubidots::add(char* label, float value, char* context, double timestamp) {
     }
 }
 bool Ubidots::loop() {
-    if (_broker.loop()){
-        delay(10);
-    } else {
-        connect();
-        delay(10);
-        _broker.loop();
-        delay(10);
-    }
+   return _broker.loop();
 }
 
 // Particular functions
